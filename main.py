@@ -12,7 +12,6 @@ from heimdall.packet_logger import PacketLogger
 def get_args():
     parser = argparse.ArgumentParser(description="Heimdall IDS - Live detector, sniffer, logger")
 
-    # subcommands for mode-specific arguments
     sub = parser.add_subparsers(dest="mode", required=True, help="mode to run")
 
     sniffer = sub.add_parser("sniffer", help="Run packet sniffer")
@@ -47,84 +46,84 @@ def get_args():
     return parser.parse_args()
 
 def run_logger(args):
-	"""Log packets to disk in various formats and folder structures."""
-	logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-	
-	# Create packet logger
-	packet_logger = PacketLogger(
-		output_dir=args.out,
-		format=args.format,
-		organize_by=args.organize_by
-	)
-	
-	logging.info(f"Packet logger initialized: format={args.format}, organize_by={args.organize_by}, output={args.out}")
-	
-	# Determine mode: live or offline
-	if args.pcap:
-		_run_logger_offline(packet_logger, args.pcap, args.count)
-	elif args.iface:
-		_run_logger_live(packet_logger, args.iface, args.count)
-	else:
-		logging.error("Must specify either --iface (live) or --pcap (offline)")
+    """Log packets to disk in various formats and folder structures."""
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    
+    # Create packet logger
+    packet_logger = PacketLogger(
+        output_dir=args.out,
+        format=args.format,
+        organize_by=args.organize_by
+    )
+    
+    logging.info(f"Packet logger initialized: format={args.format}, organize_by={args.organize_by}, output={args.out}")
+    
+    # Determine mode: live or offline
+    if args.pcap:
+        _run_logger_offline(packet_logger, args.pcap, args.count)
+    elif args.iface:
+        _run_logger_live(packet_logger, args.iface, args.count)
+    else:
+        logging.error("Must specify either --iface (live) or --pcap (offline)")
 
 
 def _run_logger_offline(logger: PacketLogger, pcap_file: str, count: int):
-	"""Log packets from a pcap file."""
-	try:
-		from scapy.all import rdpcap
-	except ImportError:
-		logging.error("Scapy not installed. Install with: pip install scapy")
-		return
-	
-	try:
-		logging.info(f"Reading packets from {pcap_file}...")
-		packets = rdpcap(pcap_file)
-		
-		if count > 0:
-			packets = packets[:count]
-		
-		for i, pkt in enumerate(packets):
-			logger.log_packet(pkt)
-			if (i + 1) % 50 == 0:
-				logging.info(f"Logged {i + 1}/{len(packets)} packets")
-		
-		logger.flush()
-		logging.info(f"Completed: logged {len(packets)} packets to {logger.output_dir}")
-	
-	except FileNotFoundError:
-		logging.error(f"PCAP file not found: {pcap_file}")
-	except Exception as e:
-		logging.error(f"Error reading PCAP: {e}")
+    """Log packets from a pcap file."""
+    try:
+        from scapy.all import rdpcap
+    except ImportError:
+        logging.error("Scapy not installed. Install with: pip install scapy")
+        return
+    
+    try:
+        logging.info(f"Reading packets from {pcap_file}...")
+        packets = rdpcap(pcap_file)
+        
+        if count > 0:
+            packets = packets[:count]
+        
+        for i, pkt in enumerate(packets):
+            logger.log_packet(pkt)
+            if (i + 1) % 50 == 0:
+                logging.info(f"Logged {i + 1}/{len(packets)} packets")
+        
+        logger.flush()
+        logging.info(f"Completed: logged {len(packets)} packets to {logger.output_dir}")
+    
+    except FileNotFoundError:
+        logging.error(f"PCAP file not found: {pcap_file}")
+    except Exception as e:
+        logging.error(f"Error reading PCAP: {e}")
 
 
 def _run_logger_live(logger: PacketLogger, iface: str, count: int):
-	"""Log packets from live traffic."""
-	try:
-		from scapy.all import sniff
-	except ImportError:
-		logging.error("Scapy not installed. Install with: pip install scapy")
-		return
-	
-	pkt_count = [0]
-	
-	def _packet_handler(pkt):
-		pkt_count[0] += 1
-		logger.log_packet(pkt)
-		if pkt_count[0] % 50 == 0:
-			logging.info(f"Logged {pkt_count[0]} packets")
-	
-	try:
-		logging.info(f"Starting packet capture on {iface}...")
-		sniff(iface=iface, prn=_packet_handler, count=count if count > 0 else 0, store=False)
-	except PermissionError:
-		logging.error("Permission denied. Run as Administrator (Windows) or with sudo (Linux)")
-	except KeyboardInterrupt:
-		logging.info("\nCapture stopped by user")
-	except Exception as e:
-		logging.error(f"Error during capture: {e}")
-	finally:
-		logger.flush()
-		logging.info(f"Completed: logged {pkt_count[0]} packets to {logger.output_dir}")
+    """Log packets from live traffic."""
+    try:
+        from scapy.all import sniff
+    except ImportError:
+        logging.error("Scapy not installed. Install with: pip install scapy")
+        return
+    
+    pkt_count = [0]
+    
+    def _packet_handler(pkt):
+        pkt_count[0] += 1
+        logger.log_packet(pkt)
+        if pkt_count[0] % 50 == 0:
+            logging.info(f"Logged {pkt_count[0]} packets")
+    
+    try:
+        logging.info(f"Starting packet capture on {iface}...")
+        sniff(iface=iface, prn=_packet_handler, count=count if count > 0 else 0, store=False)
+    except PermissionError:
+        logging.error("Permission denied. Run as Administrator (Windows) or with sudo (Linux)")
+    except KeyboardInterrupt:
+        logging.info("\nCapture stopped by user")
+    except Exception as e:
+        logging.error(f"Error during capture: {e}")
+    finally:
+        logger.flush()
+        logging.info(f"Completed: logged {pkt_count[0]} packets to {logger.output_dir}")
 
 
 def run_detector(args):
@@ -160,64 +159,64 @@ def run_detector(args):
 
 
 def _run_detector_offline(detector: Detector, logger: AlertLogger, pcap_file: str, count: int):
-	"""Run detector on a pcap file."""
-	try:
-		from scapy.all import rdpcap
-	except ImportError:
-		logging.error("Scapy not installed. Install with: pip install scapy")
-		return
-	
-	try:
-		logging.info(f"Reading packets from {pcap_file}...")
-		packets = rdpcap(pcap_file)
-		
-		if count > 0:
-			packets = packets[:count]
-		
-		alert_count = 0
-		for i, pkt in enumerate(packets):
-			alerts = detector.detect(pkt)
-			if alerts:
-				logger.log_alerts(alerts)
-				alert_count += len(alerts)
-		
-		logging.info(f"Processed {len(packets)} packets, found {alert_count} alerts")
-	
-	except FileNotFoundError:
-		logging.error(f"PCAP file not found: {pcap_file}")
-	except Exception as e:
-		logging.error(f"Error reading PCAP: {e}")
+    """Run detector on a pcap file."""
+    try:
+        from scapy.all import rdpcap
+    except ImportError:
+        logging.error("Scapy not installed. Install with: pip install scapy")
+        return
+    
+    try:
+        logging.info(f"Reading packets from {pcap_file}...")
+        packets = rdpcap(pcap_file)
+        
+        if count > 0:
+            packets = packets[:count]
+        
+        alert_count = 0
+        for i, pkt in enumerate(packets):
+            alerts = detector.detect(pkt)
+            if alerts:
+                logger.log_alerts(alerts)
+                alert_count += len(alerts)
+        
+        logging.info(f"Processed {len(packets)} packets, found {alert_count} alerts")
+    
+    except FileNotFoundError:
+        logging.error(f"PCAP file not found: {pcap_file}")
+    except Exception as e:
+        logging.error(f"Error reading PCAP: {e}")
 
 
 def _run_detector_live(detector: Detector, logger: AlertLogger, iface: str, count: int):
-	"""Run detector on live traffic."""
-	try:
-		from scapy.all import sniff
-	except ImportError:
-		logging.error("Scapy not installed. Install with: pip install scapy")
-		return
-	
-	pkt_count = [0]  # mutable counter
-	alert_count = [0]
-	
-	def _packet_handler(pkt):
-		pkt_count[0] += 1
-		alerts = detector.detect(pkt)
-		if alerts:
-			logger.log_alerts(alerts)
-			alert_count[0] += len(alerts)
-	
-	try:
-		logging.info(f"Starting live capture on {iface}...")
-		sniff(iface=iface, prn=_packet_handler, count=count if count > 0 else 0, store=False)
-	except PermissionError:
-		logging.error("Permission denied. Run as Administrator (Windows) or with sudo (Linux)")
-	except KeyboardInterrupt:
-		logging.info("\nCapture stopped by user")
-	except Exception as e:
-		logging.error(f"Error during capture: {e}")
-	finally:
-		logging.info(f"Processed {pkt_count[0]} packets, found {alert_count[0]} alerts")
+    """Run detector on live traffic."""
+    try:
+        from scapy.all import sniff
+    except ImportError:
+        logging.error("Scapy not installed. Install with: pip install scapy")
+        return
+    
+    pkt_count = [0]  # mutable counter
+    alert_count = [0]
+    
+    def _packet_handler(pkt):
+        pkt_count[0] += 1
+        alerts = detector.detect(pkt)
+        if alerts:
+            logger.log_alerts(alerts)
+            alert_count[0] += len(alerts)
+    
+    try:
+        logging.info(f"Starting live capture on {iface}...")
+        sniff(iface=iface, prn=_packet_handler, count=count if count > 0 else 0, store=False)
+    except PermissionError:
+        logging.error("Permission denied. Run as Administrator (Windows) or with sudo (Linux)")
+    except KeyboardInterrupt:
+        logging.info("\nCapture stopped by user")
+    except Exception as e:
+        logging.error(f"Error during capture: {e}")
+    finally:
+        logging.info(f"Processed {pkt_count[0]} packets, found {alert_count[0]} alerts")
 
 
 def run_nids(args):
