@@ -1,6 +1,7 @@
 """Packet logger for storing traffic in multiple formats and folder structures."""
 
 import logging
+import re
 from pathlib import Path
 from datetime import datetime
 from typing import Literal
@@ -8,6 +9,20 @@ import json
 
 from scapy.packet import Packet
 from scapy.utils import wrpcap
+
+
+_INVALID_PATH_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f ]')
+
+
+def _safe_folder_name(address: str) -> str:
+	"""
+	Make an IP address usable as a folder name on every supported OS.
+
+	IPv6 addresses contain ':' (invalid on Windows) and compressed-form
+	addresses may contain '%' for a zone id, so replace any unsafe character
+	with '_' to guarantee a single, flat directory instead of nested paths.
+	"""
+	return _INVALID_PATH_CHARS.sub("_", address)
 
 
 class PacketLogger:
@@ -26,8 +41,8 @@ class PacketLogger:
 			organize_by: How to organize packets in folders:
 				- "date": logs/2026-03-05/packets.pcap
 				- "protocol": logs/tcp/packets.pcap, logs/udp/packets.pcap
-				- "src_ip": logs/192.168.1.1/packets.pcap
-				- "dst_ip": logs/10.0.0.1/packets.pcap
+				- "src_ip": logs/192.168.1.1/packets.pcap, logs/fe80__1/packets.pcap
+				- "dst_ip": logs/10.0.0.1/packets.pcap, logs/fe80__2/packets.pcap
 				- "none": logs/packets.pcap (all in one)
 		"""
 		self.output_dir = Path(output_dir)
@@ -45,6 +60,7 @@ class PacketLogger:
 	def _get_folder_path(self, packet: Packet) -> Path:
 		"""Determine folder path based on organize_by strategy."""
 		from scapy.layers.inet import IP, TCP, UDP, ICMP
+		from scapy.layers.inet6 import IPv6
 		
 		if self.organize_by == "none":
 			return self.output_dir
@@ -64,18 +80,25 @@ class PacketLogger:
 			return self.output_dir / proto
 		
 		elif self.organize_by == "src_ip":
-			if IP in packet:
-				src_ip = packet[IP].src
-				return self.output_dir / src_ip
-			return self.output_dir / "unknown"
+			address = self._get_ip_address(packet, "src")
+			return self.output_dir / _safe_folder_name(address) if address else self.output_dir / "unknown"
 		
 		elif self.organize_by == "dst_ip":
-			if IP in packet:
-				dst_ip = packet[IP].dst
-				return self.output_dir / dst_ip
-			return self.output_dir / "unknown"
+			address = self._get_ip_address(packet, "dst")
+			return self.output_dir / _safe_folder_name(address) if address else self.output_dir / "unknown"
 		
 		return self.output_dir
+	
+	@staticmethod
+	def _get_ip_address(packet: Packet, field: Literal["src", "dst"]) -> str | None:
+		"""Return the src/dst address of the outer IPv4 or IPv6 header, if any."""
+		from scapy.layers.inet import IP
+		from scapy.layers.inet6 import IPv6
+		
+		for layer in (IPv6, IP):
+			if layer in packet:
+				return getattr(packet[layer], field)
+		return None
 	
 	def _get_file_key(self, packet: Packet) -> str:
 		"""Get unique key for grouping packets in same file."""

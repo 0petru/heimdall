@@ -129,8 +129,11 @@ python -m heimdall logger --pcap capture.pcap --out logs/ --format json
 
 - `date` — logs/2026-03-12/packets.pcap
 - `protocol` — logs/tcp/packets.pcap
-- `src_ip` — logs/192.168.1.100/packets.pcap
+- `src_ip` — logs/192.168.1.100/packets.pcap (IPv4 and IPv6, e.g. logs/fe80__1/packets.pcap)
 - `none` — All packets in single file
+
+Characters that are not valid in a folder name on all platforms (such as the `:` in an
+IPv6 address) are replaced with `_`. Packets without an IPv4/IPv6 header go to `unknown`.
 
 ### 4. NIDS Mode
 
